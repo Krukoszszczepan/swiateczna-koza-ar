@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0b0f12">
+  <meta name="description" content="Świąteczna koza AR — marker WebAR">
+  <link rel="icon" href="data:,">
+  <title>Świąteczna Koza AR</title>
+
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.8/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0f12;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: #fff;
+    }
+
+    #ui {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: #0b0f12;
+      transition: opacity 240ms ease, visibility 240ms ease;
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    #loading p {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+      color: #b9c4cc;
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid rgba(255, 255, 255, 0.18);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 900ms linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #hint {
+      position: absolute;
+      left: 50%;
+      bottom: max(20px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: calc(100% - 32px);
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: rgba(11, 15, 18, 0.72);
+      color: #fff;
+      font-size: 14px;
+      line-height: 1.35;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      transition: opacity 200ms ease;
+    }
+
+    #hint.hidden {
+      opacity: 0;
+    }
+
+    #error-popup {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(11, 15, 18, 0.92);
+      pointer-events: auto;
+    }
+
+    #error-popup.visible {
+      display: flex;
+    }
+
+    #error-popup .panel {
+      width: min(420px, 100%);
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      background: #151c22;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    #error-popup h2 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      line-height: 1.25;
+    }
+
+    #error-popup p {
+      margin: 0 0 18px;
+      color: #b9c4cc;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    #retry {
+      width: 100%;
+      min-height: 44px;
+      border: 0;
+      border-radius: 12px;
+      background: #fff;
+      color: #0b0f12;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner {
+        animation: none;
+      }
+
+      #loading,
+      #hint {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="ui">
+    <div id="loading" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Uruchamiam kamerę…</p>
+    </div>
+
+    <div id="hint">Skieruj kamerę na wydrukowany marker</div>
+
+    <div id="error-popup" role="alert">
+      <div class="panel">
+        <h2>Nie udało się uruchomić kamery</h2>
+        <p>
+          Otwórz stronę przez HTTPS albo przez <strong>localhost</strong> i zezwól na dostęp do kamery.
+          Sprawdź też, czy inne aplikacje nie używają kamery.
+        </p>
+        <button id="retry" type="button">Spróbuj ponownie</button>
+      </div>
+    </div>
+  </div>
+
+  <a-scene
+    embedded
+    loading-screen="enabled: false"
+    vr-mode-ui="enabled: false"
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+  >
+    <a-assets timeout="10000">
+      <video id="kozaVideo" loop muted autoplay playsinline webkit-playsinline preload="auto">
+        <source src="koza.webm" type="video/webm">
+        <source src="koza.mp4" type="video/mp4">
+      </video>
+    </a-assets>
+
+    <a-marker type="pattern" url="koza.patt" size="1">
+      <a-plane
+        src="#kozaVideo"
+        position="0 0.1 0"
+        rotation="-90 0 0"
+        width="1.2"
+        height="1.2"
+        material="shader: flat; transparent: true; alphaTest: 0.01"
+      >
+      </a-plane>
+    </a-marker>
+
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <script>
+    (function () {
+      var marker = document.querySelector('a-marker');
+      var video = document.querySelector('#kozaVideo');
+      var loading = document.getElementById('loading');
+      var hint = document.getElementById('hint');
+      var errorPopup = document.getElementById('error-popup');
+      var retry = document.getElementById('retry');
+      var markerVisible = false;
+
+      function hideLoading() {
+        loading.classList.add('hidden');
+      }
+
+      function showError() {
+        hideLoading();
+        hint.classList.add('hidden');
+        errorPopup.classList.add('visible');
+      }
+
+      function showTapHint() {
+        if (!markerVisible) {
+          return;
+        }
+
+        hint.textContent = 'Dotknij ekranu, aby odtworzyć animację';
+        hint.classList.remove('hidden');
+      }
+
+      function playVideo() {
+        if (!video) {
+          return;
+        }
+
+        var promise;
+
+        try {
+          promise = video.play();
+        } catch (error) {
+          showTapHint();
+          return;
+        }
+
+        if (!promise || typeof promise.then !== 'function') {
+          return;
+        }
+
+        promise
+          .then(function () {
+            if (markerVisible) {
+              hint.classList.add('hidden');
+            }
+          })
+          .catch(showTapHint);
+      }
+
+      if (!marker || !video) {
+        showError();
+        return;
+      }
+
+      window.addEventListener('camera-error', showError);
+      window.addEventListener('arjs-video-loaded', hideLoading);
+      window.setTimeout(hideLoading, 12000);
+
+      video.addEventListener('playing', function () {
+        if (markerVisible) {
+          hint.classList.add('hidden');
+        }
+      });
+
+      video.addEventListener('pause', function () {
+        if (markerVisible) {
+          showTapHint();
+        }
+      });
+
+      marker.addEventListener('markerFound', function () {
+        markerVisible = true;
+        hideLoading();
+        hint.classList.add('hidden');
+        playVideo();
+        window.setTimeout(function () {
+          if (markerVisible && video.paused) {
+            showTapHint();
+          }
+        }, 800);
+      });
+
+      marker.addEventListener('markerLost', function () {
+        markerVisible = false;
+        hint.textContent = 'Skieruj kamerę na wydrukowany marker';
+        hint.classList.remove('hidden');
+      });
+
+      function resumeVideo() {
+        playVideo();
+      }
+
+      window.addEventListener('click', resumeVideo);
+      window.addEventListener('touchstart', resumeVideo, { passive: true });
+
+      retry.addEventListener('click', function () {
+        window.location.reload();
+      });
+
+      playVideo();
+    })();
+  </script>
+</body>
+</html>
